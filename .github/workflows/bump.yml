@@ -66,16 +66,15 @@ jobs:
 
       - name: regenerate .SRCINFO
         if: steps.check.outputs.skip == 'false' && steps.asset.outputs.missing == 'false'
-        uses: addnab/docker-run-action@v3
-        with:
-          image: archlinux:base-devel
-          options: -v ${{ github.workspace }}:/pkg -w /pkg
-          run: |
-            pacman -Syu --noconfirm
-            useradd -m builder
-            chown -R builder /pkg
-            su builder -c 'makepkg --printsrcinfo > /tmp/si'
-            cp /tmp/si /pkg/.SRCINFO
+        run: |
+          # Copy only PKGBUILD to isolated dir so container chown doesn't affect .git/
+          mkdir -p /tmp/pkgbuild-src
+          cp PKGBUILD /tmp/pkgbuild-src/
+          docker run --rm \
+            -v /tmp/pkgbuild-src:/build \
+            archlinux:base-devel \
+            bash -c "pacman -Syu --noconfirm && useradd -m builder && chown -R builder /build && su builder -c 'cd /build && makepkg --printsrcinfo > /tmp/si' && cp /tmp/si /build/.SRCINFO"
+          cp /tmp/pkgbuild-src/.SRCINFO .SRCINFO
 
       - name: open pull request
         if: steps.check.outputs.skip == 'false' && steps.asset.outputs.missing == 'false'
