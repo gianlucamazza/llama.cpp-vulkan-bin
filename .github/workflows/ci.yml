@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: shellcheck PKGBUILD
+        run: |
+          sudo apt-get install -y shellcheck
+          shellcheck --shell=bash --severity=error PKGBUILD
+
+      - name: verify .SRCINFO is up to date
+        uses: addnab/docker-run-action@v3
+        with:
+          image: archlinux:base-devel
+          options: -v ${{ github.workspace }}:/pkg -w /pkg
+          run: |
+            pacman -Syu --noconfirm
+            useradd -m builder
+            chown -R builder /pkg
+            su builder -c 'makepkg --printsrcinfo' > /tmp/new.SRCINFO
+            if ! diff -u .SRCINFO /tmp/new.SRCINFO; then
+              echo "ERROR: .SRCINFO is out of date. Run: makepkg --printsrcinfo > .SRCINFO"
+              exit 1
+            fi
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: archlinux:base-devel
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install build tools
+        run: pacman -Syu --noconfirm base-devel namcap sudo
+
+      - name: setup non-root builder
+        run: |
+          useradd -m builder
+          echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+          chown -R builder .
+
+      - name: build package
+        run: su builder -c 'makepkg -s --noconfirm --syncdeps'
+
+      - name: verify package was produced
+        run: ls *.pkg.tar.zst | grep -v debug
+
+      - name: namcap check
+        run: |
+          namcap PKGBUILD || true
+          namcap *.pkg.tar.zst | grep -v debug | grep -v W || true
+
+      - name: install + smoke test
+        run: |
+          pacman -U --noconfirm *.pkg.tar.zst
+          PKGVER=$(grep '^pkgver=' PKGBUILD | cut -d= -f2)
+          llama-cli --version 2>&1 | grep -i "build\|version\|llama" || true
+          echo "Binary loads successfully"

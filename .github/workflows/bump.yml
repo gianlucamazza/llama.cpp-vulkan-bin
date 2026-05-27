@@ -1,0 +1,100 @@
+name: bump
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-and-bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: check for new upstream release
+        id: check
+        run: |
+          LATEST=$(curl -s https://api.github.com/repos/ggml-org/llama.cpp/releases/latest | jq -r .tag_name)
+          CURRENT=$(grep '^pkgver=' PKGBUILD | cut -d= -f2)
+          echo "latest=${LATEST}" >> "$GITHUB_OUTPUT"
+          echo "current=${CURRENT}" >> "$GITHUB_OUTPUT"
+          if [[ "$LATEST" == "$CURRENT" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Already at ${CURRENT}, nothing to do."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "New upstream release: ${LATEST} (current: ${CURRENT})"
+          fi
+
+      - name: verify vulkan asset exists
+        if: steps.check.outputs.skip == 'false'
+        id: asset
+        run: |
+          LATEST="${{ steps.check.outputs.latest }}"
+          URL="https://github.com/ggml-org/llama.cpp/releases/download/${LATEST}/llama-${LATEST}-bin-ubuntu-vulkan-x64.tar.gz"
+          STATUS=$(curl -sIL -o /dev/null -w '%{http_code}' "$URL")
+          echo "url=${URL}" >> "$GITHUB_OUTPUT"
+          if [[ "$STATUS" != "200" ]]; then
+            echo "WARNING: Vulkan asset not found for ${LATEST} (HTTP ${STATUS}). Skipping bump."
+            echo "missing=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "missing=false" >> "$GITHUB_OUTPUT"
+            echo "Asset OK: ${URL}"
+          fi
+
+      - name: compute sha256
+        if: steps.check.outputs.skip == 'false' && steps.asset.outputs.missing == 'false'
+        id: sha
+        run: |
+          SHA=$(curl -sL "${{ steps.asset.outputs.url }}" | sha256sum | cut -d' ' -f1)
+          echo "sha256=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "sha256=${SHA}"
+
+      - name: update PKGBUILD
+        if: steps.check.outputs.skip == 'false' && steps.asset.outputs.missing == 'false'
+        run: |
+          LATEST="${{ steps.check.outputs.latest }}"
+          SHA="${{ steps.sha.outputs.sha256 }}"
+          sed -i \
+            "s/^pkgver=.*/pkgver=${LATEST}/; \
+             s/^pkgrel=.*/pkgrel=1/; \
+             s/^sha256sums=.*/sha256sums=('${SHA}')/" PKGBUILD
+
+      - name: regenerate .SRCINFO
+        if: steps.check.outputs.skip == 'false' && steps.asset.outputs.missing == 'false'
+        uses: addnab/docker-run-action@v3
+        with:
+          image: archlinux:base-devel
+          options: -v ${{ github.workspace }}:/pkg -w /pkg
+          run: |
+            pacman -Syu --noconfirm
+            useradd -m builder
+            chown -R builder /pkg
+            su builder -c 'makepkg --printsrcinfo > /tmp/si'
+            cp /tmp/si /pkg/.SRCINFO
+
+      - name: open pull request
+        if: steps.check.outputs.skip == 'false' && steps.asset.outputs.missing == 'false'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: bump/${{ steps.check.outputs.latest }}
+          commit-message: "bump to ${{ steps.check.outputs.latest }}"
+          title: "bump to ${{ steps.check.outputs.latest }}"
+          body: |
+            Automated bump to upstream release [${{ steps.check.outputs.latest }}](https://github.com/ggml-org/llama.cpp/releases/tag/${{ steps.check.outputs.latest }}).
+
+            **sha256:** `${{ steps.sha.outputs.sha256 }}`
+
+            After merging, publish locally:
+            ```bash
+            cd ~/Workspace/arch-packages/pkgs/llama.cpp-vulkan-bin && git pull
+            cd ~/Workspace/arch-packages && ./publish.sh llama.cpp-vulkan-bin
+            sudo pacman -Syu llama.cpp-vulkan-bin
+            ```
+          labels: auto-bump
+          delete-branch: true
