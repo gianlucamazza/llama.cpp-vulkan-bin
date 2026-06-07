@@ -1,6 +1,6 @@
 # Maintainer: Gianluca Mazza <info@gianlucamazza.it>
 pkgname=llama.cpp-vulkan-bin
-pkgver=b9371
+pkgver=b9548
 pkgrel=1
 pkgdesc="llama.cpp prebuilt Vulkan binaries for Linux x86_64"
 arch=('x86_64')
@@ -16,7 +16,7 @@ optdepends=(
     'python-gguf: convert_hf_to_gguf.py'
 )
 source=("llama-${pkgver}-bin-ubuntu-vulkan-x64.tar.gz::https://github.com/ggml-org/llama.cpp/releases/download/${pkgver}/llama-${pkgver}-bin-ubuntu-vulkan-x64.tar.gz")
-sha256sums=('8a014a61280154276a45b19e1361461d32e716d7318d36013f55a20fdb222e0e')
+sha256sums=('5ea8c3b051312e12c649d2214b1a7fdfd773b82f9724141771d22cdfe544f0aa')
 
 package() {
     cd "${srcdir}/llama-${pkgver}"
