@@ -76,15 +76,36 @@ jobs:
             bash -c "pacman -Syu --noconfirm && useradd -m builder && chown -R builder /build && su builder -c 'cd /build && makepkg --printsrcinfo > /tmp/si' && cp /tmp/si /build/.SRCINFO"
           cp /tmp/pkgbuild-src/.SRCINFO .SRCINFO
 
+      - name: build + smoke test (validation gate)
+        if: steps.check.outputs.skip == 'false' && steps.asset.outputs.missing == 'false'
+        run: |
+          # Validate the bump exactly like ci.yml's build job: build the package in
+          # a clean Arch container and smoke-test the binary. A failure here fails
+          # the job, so only a working bump reaches the auto-merge step below.
+          # Build in an isolated copy so the container's chown never touches .git/.
+          mkdir -p /tmp/pkgbuild-validate
+          cp PKGBUILD /tmp/pkgbuild-validate/
+          docker run --rm -v /tmp/pkgbuild-validate:/build -w /build archlinux:base-devel bash -c '
+            set -e
+            pacman -Syu --noconfirm base-devel sudo
+            useradd -m builder
+            echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+            chown -R builder /build
+            su builder -c "makepkg -s --noconfirm --syncdeps"
+            ls /build/*.pkg.tar.zst | grep -v debug
+            pacman -U --noconfirm /build/*.pkg.tar.zst
+            llama-cli --version 2>&1 | grep -i "build\|version\|llama" || true
+            echo "smoke test OK"
+          '
+
       - name: open pull request
+        id: cpr
         if: steps.check.outputs.skip == 'false' && steps.asset.outputs.missing == 'false'
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          # Fixed branch → peter-evans keeps ONE rolling PR, re-titled to the
-          # latest tag each run, instead of opening a new PR per release (which
-          # previously piled up 40+ open bump PRs). Manual merge stays the
-          # publish trigger; the rolling PR just stops the backlog.
+          # Fixed branch keeps a single PR (no per-release backlog). It is created,
+          # validated by the build+smoke gate above, and auto-merged below.
           branch: auto-bump
           commit-message: "bump to ${{ steps.check.outputs.latest }}"
           title: "bump to ${{ steps.check.outputs.latest }}"
@@ -93,11 +114,18 @@ jobs:
 
             **sha256:** `${{ steps.sha.outputs.sha256 }}`
 
-            After merging, publish locally:
+            Built and smoke-tested in CI before merge; this PR is auto-merged on success.
+            To publish the updated package to the Arch repo:
             ```bash
-            cd ~/Workspace/arch-packages/pkgs/llama.cpp-vulkan-bin && git pull
-            cd ~/Workspace/arch-packages && ./publish.sh llama.cpp-vulkan-bin
+            cd ~/Workspace/tooling/arch-packages/pkgs/llama.cpp-vulkan-bin && git checkout main && git pull
+            cd ~/Workspace/tooling/arch-packages && ./publish.sh llama.cpp-vulkan-bin
             sudo pacman -Syu llama.cpp-vulkan-bin
             ```
           labels: auto-bump
           delete-branch: true
+
+      - name: auto-merge validated bump
+        if: steps.check.outputs.skip == 'false' && steps.asset.outputs.missing == 'false' && steps.cpr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr merge "${{ steps.cpr.outputs.pull-request-number }}" --squash --delete-branch
