@@ -81,7 +81,11 @@ jobs:
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          branch: bump/${{ steps.check.outputs.latest }}
+          # Fixed branch → peter-evans keeps ONE rolling PR, re-titled to the
+          # latest tag each run, instead of opening a new PR per release (which
+          # previously piled up 40+ open bump PRs). Manual merge stays the
+          # publish trigger; the rolling PR just stops the backlog.
+          branch: auto-bump
           commit-message: "bump to ${{ steps.check.outputs.latest }}"
           title: "bump to ${{ steps.check.outputs.latest }}"
           body: |
