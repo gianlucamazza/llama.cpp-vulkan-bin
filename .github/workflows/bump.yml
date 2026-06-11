@@ -95,7 +95,17 @@ jobs:
             ls /build/*.pkg.tar.zst | grep -v debug
             pacman -U --noconfirm /build/*.pkg.tar.zst
             llama-cli --version 2>&1 | grep -i "build\|version\|llama" || true
-            echo "smoke test OK"
+            # Backend-loading regression guard (see ci.yml): run from a different cwd
+            # and require backends to load. A bump that regressed the libexec layout
+            # must fail here, not ship a broken "no backends are loaded" package.
+            cd /tmp
+            out=$(llama-cli --list-devices 2>&1) || true
+            echo "$out"
+            if echo "$out" | grep -qi "no backends are loaded"; then
+              echo "REGRESSION: ggml backends not found from arbitrary cwd — check layout" >&2
+              exit 1
+            fi
+            echo "smoke test OK (backends load from arbitrary cwd)"
           '
 
       - name: open pull request

@@ -64,6 +64,18 @@ jobs:
       - name: install + smoke test
         run: |
           pacman -U --noconfirm *.pkg.tar.zst
-          PKGVER=$(grep '^pkgver=' PKGBUILD | cut -d= -f2)
           llama-cli --version 2>&1 | grep -i "build\|version\|llama" || true
-          echo "Binary loads successfully"
+          # Backend-loading regression guard (the reason for the libexec layout):
+          # ggml's loader finds its backend plugins only next to the executable or in
+          # the CWD. Run from a DIFFERENT cwd (/tmp) and require that backends load —
+          # `--version` alone would NOT catch a regressed layout. No GPU on the runner,
+          # so Vulkan finds no device; that is fine. The failure we guard against is the
+          # loader finding NO backend at all ("no backends are loaded").
+          cd /tmp
+          out=$(llama-cli --list-devices 2>&1) || true
+          echo "$out"
+          if grep -qi "no backends are loaded" <<<"$out"; then
+            echo "REGRESSION: ggml backends not found from a non-install cwd — check package layout" >&2
+            exit 1
+          fi
+          echo "smoke test OK (backends load from arbitrary cwd)"
