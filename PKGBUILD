@@ -18,28 +18,40 @@ optdepends=(
 source=("llama-${pkgver}-bin-ubuntu-vulkan-x64.tar.gz::https://github.com/ggml-org/llama.cpp/releases/download/${pkgver}/llama-${pkgver}-bin-ubuntu-vulkan-x64.tar.gz")
 sha256sums=('414cf74f8e9e185c2903b4e7520b0479b723f60ae501fb16ed3a3cf89fd59719')
 
+# Layout: libexec-style. ggml's runtime backend loader (plugins libggml-cpu-<variant>.so,
+# libggml-vulkan.so) searches ONLY the executable's directory and the CWD — never the
+# system libdir — and GGML_BACKEND_PATH cannot drive CPU-variant selection (it names a
+# single file). Splitting binaries (/usr/bin) from plugins (/usr/lib) therefore breaks
+# every launcher with "no backends are loaded" unless started from /usr/lib.
+# Fix at the package layer: real binaries AND all libs live together in /usr/lib/llama.cpp/
+# (binaries have RUNPATH=$ORIGIN, verified), /usr/bin holds symlinks — /proc/self/exe
+# resolves them, so the loader sees the real dir and variant-selects correctly from any CWD.
 package() {
     cd "${srcdir}/llama-${pkgver}"
 
+    local appdir="usr/lib/llama.cpp"
     install -dm755 \
         "${pkgdir}/usr/bin" \
-        "${pkgdir}/usr/lib" \
+        "${pkgdir}/${appdir}" \
         "${pkgdir}/usr/share/licenses/${pkgname}"
 
-    # binaries
+    # binaries → appdir, launcher symlinks → /usr/bin
     for f in llama-* llama rpc-server; do
-        [[ -f "$f" && -x "$f" && "$f" != *.so* ]] && install -Dm755 "$f" "${pkgdir}/usr/bin/$f"
+        if [[ -f "$f" && -x "$f" && "$f" != *.so* ]]; then
+            install -Dm755 "$f" "${pkgdir}/${appdir}/$f"
+            ln -s "/${appdir}/$f" "${pkgdir}/usr/bin/$f"
+        fi
     done
 
-    # shared libraries — install full-versioned files first, then symlink the others
+    # shared libraries (incl. ggml backend plugins) → appdir, beside the binaries
     for f in *.so *.so.*; do
-        [[ -f "$f" ]] && install -Dm644 "$f" "${pkgdir}/usr/lib/$f"
+        [[ -f "$f" ]] && install -Dm644 "$f" "${pkgdir}/${appdir}/$f"
     done
 
     install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
 
     # replace duplicate versioned copies with proper symlinks (libfoo.so.X, libfoo.so)
-    cd "${pkgdir}/usr/lib"
+    cd "${pkgdir}/${appdir}"
     shopt -s nullglob
     for full in *.so.[0-9]*.[0-9]*.[0-9]*; do
         base="${full%%.so.*}"
