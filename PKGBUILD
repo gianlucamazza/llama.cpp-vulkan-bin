@@ -1,6 +1,6 @@
 # Maintainer: Gianluca Mazza <info@gianlucamazza.it>
 pkgname=llama.cpp-vulkan-bin
-pkgver=b9864
+pkgver=b9867
 pkgrel=1
 pkgdesc="llama.cpp prebuilt Vulkan binaries for Linux x86_64"
 arch=('x86_64')
@@ -16,7 +16,7 @@ optdepends=(
     'python-gguf: convert_hf_to_gguf.py'
 )
 source=("llama-${pkgver}-bin-ubuntu-vulkan-x64.tar.gz::https://github.com/ggml-org/llama.cpp/releases/download/${pkgver}/llama-${pkgver}-bin-ubuntu-vulkan-x64.tar.gz")
-sha256sums=('c19f829232630fb75dd1daa1dadf38d9ac662b0f5d1ff5d60fd51ccf0ab11fb5')
+sha256sums=('f436e38d10eb53815ee5d6af14f286a7f90339960d060c1391bbf41a84d4a018')
 
 # Layout: libexec-style. ggml's runtime backend loader (plugins libggml-cpu-<variant>.so,
 # libggml-vulkan.so) searches ONLY the executable's directory and the CWD — never the
