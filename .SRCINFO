@@ -1,6 +1,6 @@
 pkgbase = llama.cpp-vulkan-bin
 	pkgdesc = llama.cpp prebuilt Vulkan binaries for Linux x86_64
-	pkgver = b10031
+	pkgver = b10034
 	pkgrel = 1
 	url = https://github.com/ggml-org/llama.cpp
 	arch = x86_64
@@ -20,7 +20,7 @@ pkgbase = llama.cpp-vulkan-bin
 	conflicts = llama.cpp-bin
 	conflicts = libggml
 	conflicts = ggml
-	source = llama-b10031-bin-ubuntu-vulkan-x64.tar.gz::https://github.com/ggml-org/llama.cpp/releases/download/b10031/llama-b10031-bin-ubuntu-vulkan-x64.tar.gz
-	sha256sums = b135aa9c6d751a780bfa7f3010a6bff8485171126769734924124a7b55a0dccc
+	source = llama-b10034-bin-ubuntu-vulkan-x64.tar.gz::https://github.com/ggml-org/llama.cpp/releases/download/b10034/llama-b10034-bin-ubuntu-vulkan-x64.tar.gz
+	sha256sums = cec255e083eb5617a08f1923c0b043a391a53b5d09d573675f697a8053008d73
 
 pkgname = llama.cpp-vulkan-bin
