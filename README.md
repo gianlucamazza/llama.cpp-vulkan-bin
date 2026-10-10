@@ -1,15 +1,14 @@
 # llama.cpp-vulkan-bin
 
-Arch Linux package providing prebuilt **Vulkan** binaries of [llama.cpp](https://github.com/ggml-org/llama.cpp) for Linux x86_64.
+Arch Linux package of the official [llama.cpp](https://github.com/ggml-org/llama.cpp) **Vulkan** prebuilt binaries for Linux x86_64. The PKGBUILD downloads `llama-<ver>-bin-ubuntu-vulkan-x64.tar.gz` from [upstream GitHub Releases](https://github.com/ggml-org/llama.cpp/releases) and installs it — no local compilation, and this repository does not publish GitHub Release assets of its own.
 
-Packages the official upstream release binaries — no local compilation required.
+This is **not** the [AUR package of the same name](https://aur.archlinux.org/packages/llama.cpp-vulkan-bin). That listing is a different package under a different maintainer.
 
-> Personal package, distributed from my own pacman repo — **not** the AUR. An unrelated
-> `llama.cpp-vulkan-bin` exists on the AUR under a different maintainer; this is not it.
+Built packages are signed and published to a personal pacman repo named `gianluca` (not AUR). If that repo is already configured, install with `pacman`. Otherwise clone this repository and build with `makepkg` — that is the path that works without extra setup.
 
 ## Installation
 
-Build straight from this repo (no extra setup needed):
+Clone this repo and build the package (no extra setup):
 
 ```
 git clone https://github.com/gianlucamazza/llama.cpp-vulkan-bin.git
@@ -17,7 +16,7 @@ cd llama.cpp-vulkan-bin
 makepkg -si
 ```
 
-Or, if you have the `gianluca` pacman repo configured:
+Or, if the personal `gianluca` pacman repo is already configured on the machine:
 
 ```
 sudo pacman -Syu llama.cpp-vulkan-bin
@@ -61,19 +60,8 @@ llama-cli --list-devices
 
 ## Updating
 
-A scheduled GitHub Action (`.github/workflows/bump.yml`) checks for new upstream releases
-every 6h, opens a PR that bumps `pkgver`/`sha256`, builds + smoke-tests it (including a
-backend-loading check from an arbitrary cwd), and auto-merges on success. To publish the
-merged bump to the `gianluca` pacman repo:
-
-```
-cd ~/Workspace/tooling/arch-packages/pkgs/llama.cpp-vulkan-bin && git pull
-cd ~/Workspace/tooling/arch-packages && ./publish.sh llama.cpp-vulkan-bin
-sudo pacman -Syu llama.cpp-vulkan-bin
-```
-
-To bump by hand instead: edit `pkgver` in `PKGBUILD`, run `updpkgsums`, regenerate
-`.SRCINFO` (`makepkg --printsrcinfo > .SRCINFO`) and push.
+A scheduled workflow (`.github/workflows/bump.yml`) tracks new upstream releases.
+Maintainer bump and publish steps live in [MAINTAINING.md](MAINTAINING.md).
 
 ## License
 
